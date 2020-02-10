@@ -297,6 +297,7 @@ func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
 func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
 	cmd := b.newCmd("list", b.memberListRunEFn)
 	cmd.Short = "List organization members"
+	cmd.Aliases = []string{"find", "ls"}
 
 	opts := flagOpts{
 		{
