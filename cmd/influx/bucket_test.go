@@ -170,7 +170,7 @@ func TestCmdBucket(t *testing.T) {
 		}
 	})
 
-	t.Run("find", func(t *testing.T) {
+	t.Run("list", func(t *testing.T) {
 		type called struct {
 			name  string
 			id    influxdb.ID

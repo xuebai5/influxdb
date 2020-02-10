@@ -128,9 +128,10 @@ var taskFindFlags struct {
 
 func taskFindCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "Find tasks",
-		RunE:  wrapCheckSetup(taskFindF),
+		Use:     "list",
+		Short:   "Find tasks",
+		Aliases: []string{"find", "ls"},
+		RunE:    wrapCheckSetup(taskFindF),
 	}
 
 	taskFindFlags.org.register(cmd, false)
@@ -387,9 +388,10 @@ var taskLogFindFlags struct {
 
 func taskLogFindCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "find logs for task",
-		RunE:  wrapCheckSetup(taskLogFindF),
+		Use:     "list",
+		Short:   "find logs for task",
+		Aliases: []string{"find", "ls"},
+		RunE:    wrapCheckSetup(taskLogFindF),
 	}
 
 	cmd.Flags().StringVarP(&taskLogFindFlags.taskID, "task-id", "", "", "task id (required)")
@@ -469,9 +471,10 @@ var taskRunFindFlags struct {
 
 func taskRunFindCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "find runs for a task",
-		RunE:  wrapCheckSetup(taskRunFindF),
+		Use:     "list",
+		Short:   "find runs for a task",
+		Aliases: []string{"find", "ls"},
+		RunE:    wrapCheckSetup(taskRunFindF),
 	}
 
 	cmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")

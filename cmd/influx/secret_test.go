@@ -30,7 +30,7 @@ func TestCmdSecret(t *testing.T) {
 		}
 	}
 
-	t.Run("find", func(t *testing.T) {
+	t.Run("list", func(t *testing.T) {
 		type called []string
 		tests := []struct {
 			name     string
