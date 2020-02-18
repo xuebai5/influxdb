@@ -149,7 +149,6 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-	schedulerLoop:
 		for {
 			select {
 			case <-s.done:
@@ -162,42 +161,45 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 				s.mu.Unlock()
 				return
 			case <-s.timer.C:
-				for { // this for loop is a work around to the way clock's mock works when you reset duration 0 in a different thread than you are calling your clock.Set
-					s.mu.Lock()
-					min := s.priorityQueue.Min()
-					if min == nil { // grab a new item, because there could be a different item at the top of the queue
-						s.when = time.Time{}
-						s.mu.Unlock()
-						continue schedulerLoop
-					}
-					it := min.(Item)
-					if ts := s.time.Now().UTC(); it.When().After(ts) {
-						s.timer.Reset(ts.Sub(it.When()))
-						s.mu.Unlock()
-						continue schedulerLoop
-					}
-					s.process()
-					min = s.priorityQueue.Min()
-					if min == nil { // grab a new item, because there could be a different item at the top of the queue after processing
-						s.when = time.Time{}
-						s.mu.Unlock()
-						continue schedulerLoop
-					}
-					it = min.(Item)
-					s.when = it.When()
-					until := s.when.Sub(s.time.Now())
-
-					if until > 0 {
-						s.resetTimer(until) // we can reset without a stop because we know it is fired here
-						s.mu.Unlock()
-						continue schedulerLoop
-					}
-					s.mu.Unlock()
+				// this for loop is a work around to the way clock's mock works when you reset duration 0 in a different thread than you are calling your clock.Set
+				for s.processSchedule() {
 				}
 			}
 		}
 	}()
 	return s, s.sm, nil
+}
+
+func (s *TreeScheduler) processSchedule() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	min := s.priorityQueue.Min()
+	if min == nil { // grab a new item, because there could be a different item at the top of the queue
+		s.when = time.Time{}
+		return false
+	}
+	it := min.(Item)
+	if ts := s.time.Now().UTC(); it.When().After(ts) {
+		s.timer.Reset(ts.Sub(it.When()))
+		return false
+	}
+	s.process()
+	min = s.priorityQueue.Min()
+	if min == nil { // grab a new item, because there could be a different item at the top of the queue after processing
+		s.when = time.Time{}
+		return false
+	}
+	it = min.(Item)
+	s.when = it.When()
+	until := s.when.Sub(s.time.Now())
+
+	if until > 0 {
+		s.resetTimer(until) // we can reset without a stop because we know it is fired here
+		return false
+	}
+
+	return true
 }
 
 func (s *TreeScheduler) Stop() {
