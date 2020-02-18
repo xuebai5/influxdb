@@ -67,7 +67,6 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		checkStore:     newCheckStore(),
 		endpointStore:  newEndpointStore(),
 		variableStore:  newVariableStore(),
-		indexer:        NewIndexer(log, kv),
 	}
 
 	if len(configs) > 0 {
