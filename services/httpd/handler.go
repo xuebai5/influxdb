@@ -188,7 +188,11 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"write", // Data-ingest route.
-			"POST", "/write", true, writeLogEnabled, h.serveWrite,
+			"POST", "/write", true, writeLogEnabled, h.serveWriteV1,
+		},
+		Route{
+			"write", // Data-ingest route.
+			"POST", "/v2/write", true, writeLogEnabled, h.serveWriteV2,
 		},
 		Route{
 			"prometheus-write", // Prometheus remote write
@@ -772,8 +776,21 @@ func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 	}
 }
 
-// serveWrite receives incoming series data in line protocol format and writes it to the database.
-func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.User) {
+// serveWriteV2 maps v2 write parameters to a v1 style handler.  the concepts
+// of an "org" and "bucket" are mapped to v1 "database" and "retention
+// policies".
+func (h *Handler) serveWriteV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	h.serveWrite(r.URL.Query().Get("org"), r.URL.Query().Get("bucket"), w, r, user)
+}
+
+// serveWriteV1 handles v1 style writes.
+func (h *Handler) serveWriteV1(w http.ResponseWriter, r *http.Request, user meta.User) {
+	h.serveWrite(r.URL.Query().Get("db"), r.URL.Query().Get("rp"), w, r, user)
+}
+
+// serveWrite receives incoming series data in line protocol format and writes
+// it to the database.
+func (h *Handler) serveWrite(database string, retentionPolicy string, w http.ResponseWriter, r *http.Request, user meta.User) {
 	atomic.AddInt64(&h.stats.WriteRequests, 1)
 	atomic.AddInt64(&h.stats.ActiveWriteRequests, 1)
 	defer func(start time.Time) {
@@ -782,7 +799,6 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 	}(time.Now())
 	h.requestTracker.Add(r, user)
 
-	database := r.URL.Query().Get("db")
 	if database == "" {
 		h.httpError(w, "database is required", http.StatusBadRequest)
 		return
@@ -877,7 +893,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Write points.
-	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, user, points); influxdb.IsClientError(err) {
+	if err := h.PointsWriter.WritePoints(database, retentionPolicy, consistency, user, points); influxdb.IsClientError(err) {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
