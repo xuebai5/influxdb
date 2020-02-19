@@ -66,7 +66,22 @@ func (s *ShardScheduler) Run(ctx context.Context) error {
 }
 
 func (s *ShardScheduler) State() SchedulerState {
+	states := [6]int{}
 	for _, s := range s.schedulers {
+		states[s.State()]++
 	}
-	return SchedulerStateStopped
+
+	// Rules for calculating state. Ordering matters.
+	switch {
+	case states[SchedulerStateStopped] == len(s.schedulers):
+		return SchedulerStateStopped
+	case states[SchedulerStateStopping] > 0 || states[SchedulerStateStopped] > 0:
+		return SchedulerStateStopping
+	case states[SchedulerStateProcessing] > 0:
+		return SchedulerStateProcessing
+	case states[SchedulerStateWaiting] == len(s.schedulers):
+		return SchedulerStateWaiting
+	}
+
+	return SchedulerStateReady
 }

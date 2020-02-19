@@ -62,13 +62,14 @@ type TreeScheduler struct {
 	mu            sync.RWMutex
 	priorityQueue *btree.BTree
 	nextTime      map[ID]int64 // we need this index so we can delete items from the scheduled
-	when          time.Time
-	executor      Executor
-	onErr         ErrorFunc
-	time          clock.Clock
 	timer         *clock.Timer
-	done          chan struct{}
-	checkpointer  SchedulableService
+	time          clock.Clock
+	when          time.Time
+	state         SchedulerState
+
+	executor     Executor
+	onErr        ErrorFunc
+	checkpointer SchedulableService
 
 	sm *SchedulerMetrics
 }
@@ -114,8 +115,8 @@ func NewTreeScheduler(executor Executor, checkpointer SchedulableService, opts .
 		nextTime:      map[ID]int64{},
 		onErr:         func(_ context.Context, _ ID, _ time.Time, _ error) {},
 		time:          clock.New(),
-		done:          make(chan struct{}, 1),
 		checkpointer:  checkpointer,
+		state:         SchedulerStateReady,
 	}
 
 	// apply options
@@ -146,6 +147,7 @@ func (s *TreeScheduler) Process(ctx context.Context) {
 		case <-ctx.Done():
 			s.mu.Lock()
 			s.timer.Stop()
+			s.state = SchedulerStateStopped
 			s.mu.Unlock()
 			return
 		case <-s.timer.C:
@@ -160,7 +162,11 @@ func (s *TreeScheduler) Process(ctx context.Context) {
 
 func (s *TreeScheduler) process(ctx context.Context) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer func() {
+		s.state = SchedulerStateWaiting
+		s.mu.Unlock()
+	}()
+	s.state = SchedulerStateProcessing
 
 	min := s.priorityQueue.Min()
 	if min == nil { // grab a new item, because there could be a different item at the top of the queue
