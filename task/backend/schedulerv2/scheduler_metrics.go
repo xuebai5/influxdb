@@ -23,7 +23,7 @@ type executingTasks struct {
 	ts   *TreeScheduler
 }
 
-func NewSchedulerMetrics(te *TreeScheduler) *SchedulerMetrics {
+func NewSchedulerMetrics() *SchedulerMetrics {
 	const namespace = "task"
 	const subsystem = "scheduler"
 
@@ -60,7 +60,7 @@ func NewSchedulerMetrics(te *TreeScheduler) *SchedulerMetrics {
 			Name:      "total_release_calls",
 			Help:      "Total number of release requests.",
 		}),
-		executingTasks: newExecutingTasks(te),
+		// executingTasks: newExecutingTasks(te),
 		scheduleDelay: prometheus.NewSummary(prometheus.SummaryOpts{
 			Namespace:  namespace,
 			Subsystem:  subsystem,
@@ -87,7 +87,7 @@ func (em *SchedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 		em.scheduleCalls,
 		em.scheduleFails,
 		em.releaseCalls,
-		em.executingTasks,
+		// em.executingTasks,
 		em.scheduleDelay,
 		em.executeDelta,
 	}
@@ -117,25 +117,24 @@ func (em *SchedulerMetrics) reportExecution(err error, d time.Duration) {
 	}
 }
 
-func newExecutingTasks(ts *TreeScheduler) *executingTasks {
-	return &executingTasks{
-		desc: prometheus.NewDesc(
-			"task_scheduler_current_execution",
-			"Number of tasks currently being executed",
-			nil,
-			prometheus.Labels{},
-		),
-		ts: ts,
-	}
-}
+// func newExecutingTasks(ss *ShardScheduler) *executingTasks {
+// 	return &executingTasks{
+// 		desc: prometheus.NewDesc(
+// 			"task_scheduler_current_execution",
+// 			"Number of tasks currently being executed",
+// 			nil,
+// 			prometheus.Labels{},
+// 		),
+// 		ss: ss,
+// 	}
+// }
 
-// Describe returns all descriptions associated with the run collector.
-func (r *executingTasks) Describe(ch chan<- *prometheus.Desc) {
-	ch <- r.desc
-}
+// // Describe returns all descriptions associated with the run collector.
+// func (r *executingTasks) Describe(ch chan<- *prometheus.Desc) {
+// 	ch <- r.desc
+// }
 
-// Collect returns the current state of all metrics of the run collector.
-func (r *executingTasks) Collect(ch chan<- prometheus.Metric) {
-	// TODO(docmerlin): fix this metric
-	// ch <- prometheus.MustNewConstMetric(r.desc, prometheus.GaugeValue, float64(len(r.ts.workchans)))
-}
+// // Collect returns the current state of all metrics of the run collector.
+// func (r *executingTasks) Collect(ch chan<- prometheus.Metric) {
+// 	ch <- prometheus.MustNewConstMetric(r.desc, prometheus.GaugeValue, float64(len(r.ss.activeTasks())))
+// }

@@ -52,6 +52,17 @@ type SchedulableService interface {
 	UpdateLastScheduled(ctx context.Context, id ID, t time.Time) error
 }
 
+type SchedulerState int
+
+const (
+	SchedulerStateUnknown SchedulerState = iota
+	SchedulerStateReady
+	SchedulerStateProcessing
+	SchedulerStateWaiting
+	SchedulerStateStopping
+	SchedulerStateStopped
+)
+
 func NewSchedule(unparsed string, lastScheduledAt time.Time) (Schedule, time.Time, error) {
 	lastScheduledAt = lastScheduledAt.UTC().Truncate(time.Second)
 	c, err := cron.ParseUTC(unparsed)
@@ -112,6 +123,8 @@ type Scheduler interface {
 	Release(taskID ID) error
 
 	Process(ctx context.Context)
+
+	State() SchedulerState
 }
 
 type ErrUnrecoverable struct {

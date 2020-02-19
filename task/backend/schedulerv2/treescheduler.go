@@ -95,11 +95,19 @@ func WithTime(t clock.Clock) treeSchedulerOptFunc {
 	}
 }
 
+// WithSchedulerMetrics ...
+func WithScheduleMetrics(sm *SchedulerMetrics) treeSchedulerOptFunc {
+	return func(sch *TreeScheduler) error {
+		sch.sm = sm
+		return nil
+	}
+}
+
 var ErrNoExecutor = errors.New("executor must be a non-nil function")
 
-// NewScheduler gives us a new TreeScheduler and SchedulerMetrics when given an  Executor, a SchedulableService, and zero or more options.
+// NewTreeScheduler gives us a new TreeScheduler and SchedulerMetrics when given an  Executor, a SchedulableService, and zero or more options.
 // Schedulers should be initialized with this function.
-func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...treeSchedulerOptFunc) (*TreeScheduler, *SchedulerMetrics, error) {
+func NewTreeScheduler(executor Executor, checkpointer SchedulableService, opts ...treeSchedulerOptFunc) (*TreeScheduler, *SchedulerMetrics, error) {
 	s := &TreeScheduler{
 		executor:      executor,
 		priorityQueue: btree.New(degreeBtreeScheduled),
@@ -117,7 +125,9 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 		}
 	}
 
-	s.sm = NewSchedulerMetrics(s)
+	if s.sm == nil {
+		s.sm = NewSchedulerMetrics()
+	}
 	s.when = time.Time{}
 	// Because a stopped timer will wait forever, this allows us to wait for
 	// items to be added before triggering.
@@ -340,6 +350,10 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 	// insert the new task run time
 	s.priorityQueue.ReplaceOrInsert(it)
 	return nil
+}
+
+func (s *TreeScheduler) State() SchedulerState {
+	return SchedulerStateStopped
 }
 
 // Item is a task in the scheduler.
