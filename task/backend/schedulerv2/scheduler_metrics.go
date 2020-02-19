@@ -137,5 +137,5 @@ func (r *executingTasks) Describe(ch chan<- *prometheus.Desc) {
 // Collect returns the current state of all metrics of the run collector.
 func (r *executingTasks) Collect(ch chan<- prometheus.Metric) {
 	// TODO(docmerlin): fix this metric
-	ch <- prometheus.MustNewConstMetric(r.desc, prometheus.GaugeValue, float64(len(r.ts.workchans)))
+	// ch <- prometheus.MustNewConstMetric(r.desc, prometheus.GaugeValue, float64(len(r.ts.workchans)))
 }

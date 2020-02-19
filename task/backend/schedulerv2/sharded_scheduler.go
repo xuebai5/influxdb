@@ -1,6 +1,7 @@
 package schedulerv2
 
 import (
+	"context"
 	"encoding/binary"
 	"sync"
 
@@ -51,21 +52,13 @@ func (s *ShardedScheduler) hash(taskID ID) uint64 {
 	return xxhash.Sum64(buf[:]) % uint64(len(s.schedulers)) // we just hash so that the number is uniformly distributed
 }
 
-func (s *ShardedScheduler) Run() error {
+func (s *ShardedScheduler) Run(ctx context.Context) error {
 	s.wg.Add(len(s.schedulers))
 	for _, shard := range s.schedulers {
 		go func(shard Scheduler) {
-			shard.Run()
+			shard.Process(ctx)
 			s.wg.Done()
 		}(shard)
-	}
-	s.wg.Wait()
-	return nil
-}
-
-func (s *ShardedScheduler) Stop() error {
-	for _, shard := range s.schedulers {
-		shard.Stop()
 	}
 	s.wg.Wait()
 	return nil

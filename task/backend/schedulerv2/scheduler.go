@@ -111,8 +111,7 @@ type Scheduler interface {
 	// Release removes the specified task from the scheduler.
 	Release(taskID ID) error
 
-	Run()
-	Stop()
+	Process(ctx context.Context)
 }
 
 type ErrUnrecoverable struct {
