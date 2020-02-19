@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
@@ -97,47 +98,50 @@ func runEWrap(fn runEWrapFn) genericCLIOptFn {
 	}
 }
 
-var flags struct {
+type globalFlags struct {
 	token      string
 	host       string
 	local      bool
 	skipVerify bool
 }
 
-func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
+var flags globalFlags
+
+type cmdInfluxBuilder struct {
+	genericCLIOpts
+
+	once sync.Once
+}
+
+func newInfluxCmdBuilder(opts ...genericCLIOptFn) *cmdInfluxBuilder {
+	builder := new(cmdInfluxBuilder)
+
 	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
+		in:         os.Stdin,
+		w:          os.Stdout,
+		runEWrapFn: wrapCheckSetup(&flags),
 	}
 	for _, o := range opts {
 		o(&opt)
 	}
 
-	cmd := opt.newCmd("influx", nil)
+	builder.genericCLIOpts = opt
+	return builder
+}
+
+func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCLIOpts) *cobra.Command) *cobra.Command {
+	b.once.Do(func() {
+		// enforce that viper options only ever get set once
+		setViperOptions()
+	})
+
+	cmd := b.newCmd("influx", nil)
 	cmd.Short = "Influx Client"
 	cmd.SilenceUsage = true
 
-	setViperOptions()
-
-	runEWrapper := runEWrap(wrapCheckSetup)
-
-	cmd.AddCommand(
-		cmdAuth(),
-		cmdBackup(),
-		cmdBucket(runEWrapper),
-		cmdDelete(),
-		cmdOrganization(runEWrapper),
-		cmdPing(),
-		cmdPkg(runEWrapper),
-		cmdQuery(),
-		cmdTranspile(),
-		cmdREPL(),
-		cmdSecret(runEWrapper),
-		cmdSetup(),
-		cmdTask(),
-		cmdUser(runEWrapper),
-		cmdWrite(),
-	)
+	for _, childCmd := range childCmdFns {
+		cmd.AddCommand(childCmd(&flags, b.genericCLIOpts))
+	}
 
 	fOpts := flagOpts{
 		{
@@ -173,6 +177,27 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 	})
 
 	return cmd
+}
+
+func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
+	builder := newInfluxCmdBuilder(opts...)
+	return builder.cmd(
+		cmdAuth,
+		cmdBackup,
+		cmdBucket,
+		cmdDelete,
+		cmdOrganization,
+		cmdPing,
+		cmdPkg,
+		cmdQuery,
+		cmdTranspile,
+		cmdREPL,
+		cmdSecret,
+		cmdSetup,
+		cmdTask,
+		cmdUser,
+		cmdWrite,
+	)
 }
 
 func fetchSubCommand(parent *cobra.Command, args []string) *cobra.Command {
@@ -230,10 +255,10 @@ func writeTokenToPath(tok, path, dir string) error {
 	return ioutil.WriteFile(path, []byte(tok), 0600)
 }
 
-func checkSetup(host string) error {
+func checkSetup(host string, skipVerify bool) error {
 	s := &http.SetupService{
-		Addr:               flags.host,
-		InsecureSkipVerify: flags.skipVerify,
+		Addr:               host,
+		InsecureSkipVerify: skipVerify,
 	}
 
 	isOnboarding, err := s.IsOnboarding(context.Background())
@@ -248,19 +273,21 @@ func checkSetup(host string) error {
 	return nil
 }
 
-func wrapCheckSetup(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
-	return wrapErrorFmt(func(cmd *cobra.Command, args []string) error {
-		err := fn(cmd, args)
-		if err == nil {
-			return nil
-		}
+func wrapCheckSetup(f *globalFlags) func(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
+	return func(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
+		return wrapErrorFmt(func(cmd *cobra.Command, args []string) error {
+			err := fn(cmd, args)
+			if err == nil {
+				return nil
+			}
 
-		if setupErr := checkSetup(flags.host); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
-			return setupErr
-		}
+			if setupErr := checkSetup(f.host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+				return setupErr
+			}
 
-		return err
-	})
+			return err
+		})
+	}
 }
 
 func wrapErrorFmt(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
